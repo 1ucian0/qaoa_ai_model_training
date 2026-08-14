@@ -27,7 +27,7 @@ The pipeline expects the directory specified by `data.graph_dir` to follow this 
   splits/               # train, validation and test splits
 ```
 
-The required data can be generated using the conventions and utilities from [`QAOA-Parameter-Setting`](https://github.com/qiskit-community/QAOA-Parameter-Setting) together with the `qaoa_training_pipeline` package it depends on.
+The required data can be generated using the conventions and utilities from [`QAOA-Parameter-Setting`](https://github.com/Quantum-Working-Groups/QAOA-Parameter-Setting) together with the `qaoa_training_pipeline` package it depends on.
 
 ### 1. Graph instances
 
@@ -55,7 +55,7 @@ Each graph is stored as a JSON edge list with per-edge weights:
 }
 ```
 
-See the [`QAOA-Parameter-Setting` instance documentation](https://github.com/qiskit-community/QAOA-Parameter-Setting/tree/main/instances) for the expected schema and filename conventions.
+See the [`QAOA-Parameter-Setting` instance documentation](https://github.com/Quantum-Working-Groups/QAOA-Parameter-Setting/tree/main/instances) for the expected schema and filename conventions.
 
 Every instance ID must be unique across all instance sets that are combined in one dataset.
 
@@ -103,7 +103,7 @@ For example:
         └── ...
 ```
 
-You can use any QAOA parameter optimization strategy that produces the required results. [`QAOA-Parameter-Setting`](https://github.com/qiskit-community/QAOA-Parameter-Setting) provides example strategies and utilities for generating them.
+You can use any QAOA parameter optimization strategy that produces the required results. [`QAOA-Parameter-Setting`](https://github.com/Quantum-Working-Groups/QAOA-Parameter-Setting) provides example strategies and utilities for generating them.
 
 For training, each `results_p<P>/` directory also needs a `best_param.json` containing the best angle and energy pair for every instance:
 
