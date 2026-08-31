@@ -1,5 +1,8 @@
 # QAOA AI model training
 
+> [!NOTE]
+> This repository is associated to a [research publication](<link-to-publication>) and the code here is not actively maintained. This is not an officially supported IBM Quantum software.
+
 This repository provides a training and evaluation pipeline for graph-based machine learning models that predict optimized QAOA parameters directly from a problem graph.
 
 The models take graph-level features and, depending on the architecture, graph topology, node features and edge weights. They predict the QAOA angle vector
@@ -329,7 +332,5 @@ The data preparation utilities are:
 This project builds on [`qaoa_training_pipeline`](https://github.com/qiskit-community/qaoa_training_pipeline) for QAOA evaluation and training utilities and on [PauliPropagation.jl](https://github.com/MSRudolph/PauliPropagation.jl) for efficient evaluation at QAOA depth `p > 1`.
 
 ## License
-
-<!-- TODO: confirm with IBM open-source review before publishing. -->
 
 See [LICENSE](LICENSE).

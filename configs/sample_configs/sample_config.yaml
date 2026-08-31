@@ -1,0 +1,85 @@
+# Sample training configuration for training a QAOA parameter prediction model.
+#
+# Main settings to adapt:
+#   1. data.graph_dir: path to your graph dataset
+#   2. data.p: QAOA depth, which defines the number of predicted angles
+#   3. model.model_type: model architecture to use
+#
+# Run with:
+#   python -m training.training_script --config configs/sample_configs/sample_config.yaml
+
+seed: 42  # Seeds Python, NumPy, PyTorch, and Lightning for reproducibility.
+
+data:
+  # Root directory of the graph dataset. See the README for details.
+  # Expected subdirectories:
+  #   <graph_dir>/instances/          graph instances
+  #   <graph_dir>/max_cuts/           precomputed max-cut values
+  #   <graph_dir>/results_p<P>/       optimized parameters and split files
+  graph_dir: "<path to your graph dataset>"
+
+  # QAOA depth. The model predicts 2*p angles.
+  p: 1
+
+  # Graph-level input features.
+  # All valid options are listed in VALID_IN_FEATURES
+  in_features:
+    - num_nodes
+    - num_edges
+    - edges_per_node
+    - mean_degree
+    - std_degree
+  use_edge_weights: true
+
+  batch_size: 64
+  num_workers: 0
+
+  # Feature normalization statistics given as [mean, std].
+  # Providing them explicitly keeps normalization consistent across
+  # training and evaluation. If omitted, they are computed from the
+  # training split.
+  #
+  # The values below are illustrative only, recompute them for your own data. See
+  # scripts_and_notebooks/datamodule_tutorial.ipynb for how.
+  norm_stats:
+    x:
+      num_nodes: [61.36, 25.86]
+      num_edges: [193.76, 129.66]
+      edges_per_node: [2.95, 1.23]
+      mean_degree: [5.90, 2.45]
+      std_degree: [1.01, 1.09]
+
+model:
+  # Model architecture.
+  model_type: graph_neural_network
+
+  lr: 5e-4
+  num_epochs: 100
+
+  # Stop training after `patience` validation checks without an
+  # improvement of at least `min_delta`.
+  patience: 10
+  min_delta: 0.0
+
+  # Number of denoising steps used by diffusion_transformer.
+  # Must be greater than zero for that model and is ignored otherwise.
+  num_timesteps: 0
+
+trainer:
+  accelerator: auto  # Supported options are auto, cpu, gpu, and mps.
+  devices: auto
+  strategy: auto
+
+  # TensorBoard logs and checkpoints are stored under <run_name>.
+  # Missing directories are created automatically.
+  log_dir: ./runs
+  ckpt_dir: ./checkpoints/p_1/
+  run_name: qaoa_graph_neural_network_p1
+
+  log_every_n_steps: 10
+  check_val_every_n_epoch: 2
+
+  # Keep the best `save_top_k` checkpoints based on the monitored metric.
+  # Setting save_last to true additionally saves last.ckpt.
+  save_top_k: 1
+  save_last: true

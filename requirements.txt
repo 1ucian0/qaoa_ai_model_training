@@ -97,9 +97,9 @@ pytz==2025.2
 PyYAML==6.0.2
 pyzmq==27.0.0
 qaoa_training_pipeline @ git+https://github.com/qiskit-community/qaoa_training_pipeline@5139dde6e40b13688d4d82672017e06594e19beb
-qiskit==1.4.3
+qiskit==2.5.2
 qiskit-algorithms==0.3.1
-qiskit-optimization==0.6.1
+qiskit-optimization==0.7.0
 quimb==1.11.1
 referencing==0.36.2
 requests==2.32.4

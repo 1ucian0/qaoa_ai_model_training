@@ -27,6 +27,7 @@ lightning_logs/
 
 # ── Generated configs ─────────────────────────────────────────────────────────
 configs/*
+!configs/sample_configs/
 
 # ── Jupyter ───────────────────────────────────────────────────────────────────
 .ipynb_checkpoints/

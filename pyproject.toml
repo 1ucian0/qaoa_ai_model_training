@@ -54,9 +54,6 @@ packages = [
     "datamodule",
     "ml_models",
     "training",
-    "utils",
-    "inference_pipeline",
-    "inference_pipeline.inference_utils",
 ]
 
 [tool.pytest.ini_options]
