@@ -38,7 +38,7 @@ def main():
     results_dir = splits_dir / f"p_{args.target_p}"
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    repo_results_dir = repo /  f"results_p{args.target_p}" #("results_p2" if args.target_p == 1 else
+    repo_results_dir = repo / f"results_p{args.target_p}"
     best_param_file = repo_results_dir / "best_param.json"
     master_test = splits_dir / "test_split.json"
     master_split = splits_dir / "train_val_split.json"

@@ -34,7 +34,7 @@ def init_from_config(cfg: dict) -> tuple:
     logger.info("Problem depth p: %d", p)
 
     # Default dir conventions
-    results_dir = graph_dir / f"results_p{2 if p == 1 else p}"
+    results_dir = graph_dir / f"results_p{p}"
     instance_dir = graph_dir / "instances"
     cut_metrics_dir = graph_dir / "max_cuts"
     fixed_angle_dir = graph_dir / "fixed_angle_cuts"

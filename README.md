@@ -15,6 +15,21 @@ of length `2p`.
 
 Available model architectures are registered in `MODEL_REGISTRY` in [`ml_models/models.py`](ml_models/models.py). The corresponding model classes in `ml_models/` document which inputs they use.
 
+All commands below are run from the repository root.
+
+## Quickstart
+
+1. Install the package (see [Setup](#setup)).
+2. No graph data yet? Generate a tiny synthetic dataset to smoke-test the pipeline:
+   ```bash
+   python -m scripts_and_notebooks.make_smoke_test_data --out_dir /tmp/qaoa_smoke_test
+   python -m scripts_and_notebooks.testset_generation --graphs_repo /tmp/qaoa_smoke_test --instance_sets smoke_test
+   python -m scripts_and_notebooks.build_per_p_split --graphs_repo /tmp/qaoa_smoke_test --target_p 1
+   python -m training.training_script --config configs/sample_configs/smoke_test_config.yaml
+   ```
+   This uses random, non-optimized angles purely to check that installation and the pipeline mechanics work end to end. Do not use the resulting checkpoint for anything else.
+3. With real data, follow [Data](#data) to lay out `graph_dir`, then [Configuration](#configuration), [Training](#training) and [Testing](#testing) in order.
+
 ## Data
 
 **This repository contains code only.** The graph dataset used in the accompanying paper is not included. To train or evaluate a model, you need to provide your own graph data and QAOA optimization results.
@@ -310,6 +325,8 @@ Checkpoints are loaded with `strict=True`, so incompatible model architectures f
 | `configs/sample_configs/` | Annotated example configuration |
 | `scripts_and_notebooks/` | Data preparation utilities and tutorial |
 | `tests/` | Model, configuration and repository tests |
+
+See [`training/README.md`](training/README.md) for how the modules in `training/` fit together.
 
 The main training components are:
 
