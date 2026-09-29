@@ -14,7 +14,6 @@ from qaoa_training_pipeline.evaluation.efficient_depth_one import (
     EfficientDepthOneEvaluator,
 )
 from qaoa_training_pipeline.evaluation import PPEvaluator
-from qaoa_training_pipeline.training.fixed_angle_conjecture import FixedAngleConjecture
 from qaoa_training_pipeline.utils.graph_utils import graph_to_operator, load_graph
 
 from datamodule.utils import undo_gamma_rescale, denormalize_qaoa_params
@@ -98,10 +97,6 @@ class QAOAEvalMixin:
         super().__init__(*args, **kwargs)
         self._eval_depth1 = EfficientDepthOneEvaluator()
         self._eval_pp = PPEvaluator({"max_weight": 4, "min_abs_coeff": 1e-5})
-        self._fixed_angle_conjecture = FixedAngleConjecture(evaluator=None)
-
-        # Cache for fixed angle ARs: key=(degree, depth) -> value=AR
-        self._fixed_angle_cache = {}
 
         # Cache for loaded graphs and cost operators, keyed by (instance_set, instance_id).
         self._graph_cache = {}
@@ -455,6 +450,11 @@ class QAOAEvalMixin:
         count_t = torch.tensor(float(count), device=self.device)
         assert count_t.item() > 0, "No validation samples processed"
         self.log("val/count", count_t, prog_bar=False,)
+        self.log(
+            "val/fixed_angle_count",
+            float(len(self._val_metrics["fixed_angle_approx_ratio"])),
+            prog_bar=False,
+        )
 
         energy_mean, energy_std = self.compute_mean_std(self._val_metrics["energy"])
         ratio_mean, ratio_std = self.compute_mean_std(self._val_metrics["approx_ratio"])
@@ -701,6 +701,11 @@ class QAOAEvalMixin:
         count_t = torch.tensor(float(count), device=self.device)
         assert count_t.item() > 0, "No test samples processed"
         self.log("test/count", count_t, prog_bar=False,)
+        self.log(
+            "test/fixed_angle_count",
+            float(len(self._test_metrics["fixed_angle_approx_ratio"])),
+            prog_bar=False,
+        )
 
         ratio_mean, ratio_std = self.compute_mean_std(
             self._test_metrics["approx_ratio"]

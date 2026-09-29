@@ -174,7 +174,20 @@ Point `data.split_file` and `data.test_file` in the configuration to these files
 
 `fixed_angle_cuts/` is optional. If no fixed-angle result is available for an instance, training and testing still work and `fixed_angle_approx_ratio` is left empty.
 
-For random regular graphs, `qaoa_training_pipeline.training.fixed_angle_conjecture.FixedAngleConjecture` provides published fixed angles.
+To reproduce our fixed-angle baseline:
+
+1. Download `angles_regular_graphs.json` from [danlkv/fixed-angle-QAOA at commit `956be14`](https://github.com/danlkv/fixed-angle-QAOA/blob/956be1450c9d1f1957d3189a6603264d13163088/angles_regular_graphs.json).
+2. For each instance set, run:
+   ```bash
+   python -m scripts_and_notebooks.compute_fixed_angle_cuts \
+     --angles_file angles_regular_graphs.json \
+     --instance_dir <graph_dir>/instances/<instance_set> \
+     --instance_set <instance_set> \
+     --depth <P>
+   ```
+   This looks up the published angles for each instance's degree, evaluates the cut value, and writes one result file per instance under `fixed_angle_cuts/p_<P>/<instance_set>/`.
+
+You can use the same output format to plug in fixed angles from any other source instead.
 
 A fixed-angle result has the following format:
 
