@@ -12,7 +12,7 @@ import re
 import torch
 from collections import defaultdict
 import numpy as np
-import torch
+import lightning.pytorch as pl
 import random
 
 
