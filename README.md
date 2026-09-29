@@ -203,7 +203,7 @@ A fixed-angle result has the following format:
 
 ## Setup
 
-Requires Python 3.10+.
+Requires Python 3.11+.
 
 ```bash
 pip install -e .
@@ -222,14 +222,11 @@ python -m pip install -e ".[graph]" --no-build-isolation
 
 ### Julia for QAOA depth greater than 1
 
-Evaluation at `p = 1` uses `EfficientDepthOneEvaluator` and only requires Python.
+This repo depends on [`qaoa_training_pipeline`](https://github.com/qiskit-community/qaoa_training_pipeline), installed with its `tns` extra that pulls in `juliacall`.
 
-For `p > 1`, the pipeline uses `PPEvaluator`, which relies on [PauliPropagation.jl](https://github.com/MSRudolph/PauliPropagation.jl).
-
-Install Julia first, then run:
+For `p > 1`, the pipeline uses `PPEvaluator`, which relies on [PauliPropagation.jl](https://github.com/MSRudolph/PauliPropagation.jl). Install Julia itself, then run:
 
 ```bash
-pip install -e ".[julia]"
 python link-julia-python.py
 ```
 
