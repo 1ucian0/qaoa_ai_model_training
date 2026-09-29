@@ -397,7 +397,12 @@ class QAOADataset(Dataset):
         x["instance_id"] = s["instance_id"]
         x["instance_set"] = s["instance_set"]
 
-        if self.cut_metrics_dir:
+        cut_metrics_path = (
+            self.cut_metrics_dir / s["instance_set"] / f"{s['instance_id']}.json"
+            if self.cut_metrics_dir
+            else None
+        )
+        if cut_metrics_path is not None and cut_metrics_path.exists():
             max_cut, min_cut = self._load_cut_metrics(
                 s["instance_id"], s["instance_set"]
             )
