@@ -13,7 +13,6 @@ import warnings
 from qaoa_training_pipeline.evaluation.efficient_depth_one import (
     EfficientDepthOneEvaluator,
 )
-from qaoa_training_pipeline.evaluation import PPEvaluator
 from qaoa_training_pipeline.utils.graph_utils import graph_to_operator, load_graph
 
 from datamodule.utils import undo_gamma_rescale, denormalize_qaoa_params
@@ -23,16 +22,19 @@ _WORKER_EVAL_DEPTH1 = None
 _WORKER_EVAL_PP = None
 
 
-def _pool_init() -> None:
+def _pool_init(depth: int = 1) -> None:
     """Initializer run once in each pool worker process.
 
-    Builds the depth-1 and p>=2 evaluators a single time per worker so the
-    Julia warmup for PPEvaluator is amortised across every instance that
-    worker handles.
+    Builds the depth-1 evaluator, and the p>=2 evaluator only when needed,
+    so the Julia warmup for PPEvaluator is skipped at p=1 and
+    otherwise amortised across every instance that worker handles.
     """
     global _WORKER_EVAL_DEPTH1, _WORKER_EVAL_PP
     _WORKER_EVAL_DEPTH1 = EfficientDepthOneEvaluator()
-    _WORKER_EVAL_PP = PPEvaluator({"max_weight": 4, "min_abs_coeff": 1e-5})
+    if int(depth) != 1:
+        from qaoa_training_pipeline.evaluation import PPEvaluator
+
+        _WORKER_EVAL_PP = PPEvaluator({"max_weight": 4, "min_abs_coeff": 1e-5})
 
 
 def _eval_one_instance(
@@ -96,11 +98,20 @@ class QAOAEvalMixin:
     def __init__(self, *args: any, **kwargs: any) -> None:
         super().__init__(*args, **kwargs)
         self._eval_depth1 = EfficientDepthOneEvaluator()
-        self._eval_pp = PPEvaluator({"max_weight": 4, "min_abs_coeff": 1e-5})
+        self._eval_pp_instance = None
 
         # Cache for loaded graphs and cost operators, keyed by (instance_set, instance_id).
         self._graph_cache = {}
         self._cost_op_cache = {}
+
+    @property
+    def _eval_pp(self):
+        """Built on first use so p=1 runs never import PPEvaluator (and its Julia backend)."""
+        if self._eval_pp_instance is None:
+            from qaoa_training_pipeline.evaluation import PPEvaluator
+
+            self._eval_pp_instance = PPEvaluator({"max_weight": 4, "min_abs_coeff": 1e-5})
+        return self._eval_pp_instance
 
     def load_graph_with_weights(
         self, instance_id: str, instance_set: str, instance_dir: Path
@@ -557,7 +568,10 @@ class QAOAEvalMixin:
 
         ctx = mp.get_context("spawn")
         self._eval_pool = ProcessPoolExecutor(
-            max_workers=workers, mp_context=ctx, initializer=_pool_init
+            max_workers=workers,
+            mp_context=ctx,
+            initializer=_pool_init,
+            initargs=(self.depth,),
         )
 
     def _shutdown_eval_pool(self) -> None:
@@ -601,7 +615,7 @@ class QAOAEvalMixin:
                 _eval_one_instance(
                     *a,
                     evaluator_depth1=self._eval_depth1,
-                    evaluator_pp=self._eval_pp,
+                    evaluator_pp=self._eval_pp if self.depth != 1 else None,
                 )
                 for a in args
             ]
