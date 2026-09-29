@@ -190,16 +190,21 @@ A fixed-angle result has the following format:
 
 ## Setup
 
-Python 3.10 or newer is required.
-
-Install the package first, followed by the `torch-geometric` dependencies:
+Requires Python 3.10+.
 
 ```bash
 pip install -e .
-pip install -e ".[graph]"
 ```
 
-`torch-geometric` and its compiled dependencies need `torch` to be installed first, which is why the installation is split into two steps.
+This covers the `mlp`, `edge_transformer`, `diffusion_transformer`, and `graph_neural_network` models.
+
+The `gcn`, `graph_isomorphism_network`, and `graph_transformer` models need `torch-geometric` as well. Install it after the base package, once `torch` is already present:
+
+```bash
+python -m pip install -e ".[graph]" --no-build-isolation
+```
+
+`--no-build-isolation` stops `torch-scatter` from building against a fresh, torch-less environment instead of the one you just installed `torch` into.
 
 
 ### Julia for QAOA depth greater than 1

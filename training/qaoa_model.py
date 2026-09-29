@@ -12,8 +12,6 @@ from datamodule.meta_configs import NODE_FEATURES, EDGE_FEATURES
 from ml_models.models import get_model
 from .eval_step import QAOAEvalMixin
 
-from torch_geometric.data import Data, Batch
-
 
 def _symmetrize_edges(
     edges_mx2: torch.Tensor,
@@ -256,6 +254,8 @@ class QAOAModel(QAOAEvalMixin, pl.LightningModule):
             return self.core(x_vec, edges_list, node_count, node_features, edge_features)
 
         if model_type == "gcn":
+            from torch_geometric.data import Data, Batch
+
             if "edges" not in x:
                 raise KeyError("gcn requires 'edges' in input")
             if "node_count" not in x:

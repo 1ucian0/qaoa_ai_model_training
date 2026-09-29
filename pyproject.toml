@@ -36,7 +36,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Compiled PyTorch Geometric stack. Install only after torch (see note above).
+# Compiled PyTorch Geometric stack, only required for the gcn, graph_isomorphism_network,
+# and graph_transformer models. Install after torch, with --no-build-isolation (see README).
 graph = [
     "torch-geometric>=2.3.0",
     "torch-scatter>=2.1.0",
