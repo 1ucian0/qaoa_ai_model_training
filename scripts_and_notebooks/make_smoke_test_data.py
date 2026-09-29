@@ -29,8 +29,15 @@ def _make_graph(rng: random.Random, num_nodes: int) -> dict:
         for v in range(u + 1, num_nodes):
             if rng.random() < 0.5:
                 edges.append({"nodes": [u, v], "weight": 1})
-    if not edges:
-        edges.append({"nodes": [0, 1], "weight": 1})
+
+    # Ensure every node appears in at least one edge
+    connected = {n for edge in edges for n in edge["nodes"]}
+    for u in range(num_nodes):
+        if u not in connected:
+            v = rng.choice([n for n in range(num_nodes) if n != u])
+            edges.append({"nodes": sorted([u, v]), "weight": 1})
+            connected.add(u)
+
     return {"edge list": edges}
 
 
