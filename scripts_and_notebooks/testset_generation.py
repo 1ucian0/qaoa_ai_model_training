@@ -142,10 +142,8 @@ def _structural_norm_stats(
         arr = np.asarray(vs, dtype=np.float32)
         mean = float(arr.mean())
         std = float(arr.std())
-        out["x"][f] = {
-            "mean": mean,
-            "std": std if std > 1e-12 else 1.0,
-        }
+        # [mean, std], the format QAOADataset and the config's norm_stats expect.
+        out["x"][f] = [mean, std if std > 1e-12 else 1.0]
 
     return out
 
