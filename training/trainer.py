@@ -61,7 +61,9 @@ def build_trainer(cfg: dict) -> pl.Trainer:
         callbacks=[ckpt_cb, es_cb],
         logger=logger,
         log_every_n_steps=int(trainer_cfg.get("log_every_n_steps", 10)),
-        deterministic=bool(trainer_cfg.get("deterministic", True)),
+        # "warn" uses deterministic algorithms where available and only warns for ops
+        # without one, e.g. scatter-add on Apple MPS, instead of failing.
+        deterministic=trainer_cfg.get("deterministic", "warn"),
         check_val_every_n_epoch=int(trainer_cfg.get("check_val_every_n_epoch", 5)),
         gradient_clip_val=1.0,
         gradient_clip_algorithm="norm",
