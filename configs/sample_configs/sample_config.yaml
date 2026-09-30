@@ -3,7 +3,8 @@
 # Main settings to adapt:
 #   1. data.graph_dir: path to your graph dataset
 #   2. data.p: QAOA depth, which defines the number of predicted angles
-#   3. model.model_type: model architecture to use
+#   3. data.instance_set: instance sets to train on
+#   4. model.model_type: model architecture to use
 #
 # Run with:
 #   python -m training.training_script --config configs/sample_configs/sample_config.yaml
@@ -15,11 +16,16 @@ data:
   # Expected subdirectories:
   #   <graph_dir>/instances/          graph instances
   #   <graph_dir>/max_cuts/           precomputed max-cut values
-  #   <graph_dir>/results_p<P>/       optimized parameters and split files
+  #   <graph_dir>/results_p<P>/       best_param.json with optimized parameters
+  #   <graph_dir>/splits/p_<P>/       train/val and test split files
   graph_dir: "<path to your graph dataset>"
 
   # QAOA depth. The model predicts 2*p angles.
   p: 1
+
+  # Instance sets to train on, i.e. subdirectories of <graph_dir>/instances/.
+  instance_set:
+    - random_regular
 
   # Graph-level input features.
   # All valid options are listed in VALID_IN_FEATURES
@@ -35,19 +41,18 @@ data:
   num_workers: 0
 
   # Feature normalization statistics given as [mean, std].
-  # Providing them explicitly keeps normalization consistent across
-  # training and evaluation. If omitted, they are computed from the
-  # training split.
+  # If omitted, the statistics stored in the train/val split file by
+  # scripts_and_notebooks/testset_generation.py are used, which keeps
+  # normalization consistent across training and evaluation. Set them here
+  # only to override those, for example:
   #
-  # The values below are illustrative only, recompute them for your own data. See
-  # scripts_and_notebooks/datamodule_tutorial.ipynb for how.
-  norm_stats:
-    x:
-      num_nodes: [61.36, 25.86]
-      num_edges: [193.76, 129.66]
-      edges_per_node: [2.95, 1.23]
-      mean_degree: [5.90, 2.45]
-      std_degree: [1.01, 1.09]
+  # norm_stats:
+  #   x:
+  #     num_nodes: [61.36, 25.86]
+  #     num_edges: [193.76, 129.66]
+  #     edges_per_node: [2.95, 1.23]
+  #     mean_degree: [5.90, 2.45]
+  #     std_degree: [1.01, 1.09]
 
 model:
   # Model architecture.
