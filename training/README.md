@@ -10,9 +10,9 @@ together.
   and may be run independently of training (e.g. training on GPU and testing on CPUs).
 
 - `initialization` turns a config dict into the datamodule, model and trainer. It derives
-  the conventional `results_p<P>/`, `instances/`, `max_cuts/` and `fixed_angle_cuts/`
-  sub-paths from `data.graph_dir`, and the split/summary filename suffix from the
-  selected graph types, unless those are overridden explicitly in the config.
+  the conventional `results_p<P>/best_param.json`, `splits/p_<P>/`, `instances/`,
+  `max_cuts/` and `fixed_angle_cuts/` paths from `data.graph_dir` and `data.p`, unless
+  those are overridden explicitly in the config.
 
 - `eval_step` contains the shared validation and test logic as a mixin for the QAOA
   model. It is placed in a separate file due to its size and extensive logging. It
