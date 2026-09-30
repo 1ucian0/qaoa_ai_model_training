@@ -100,15 +100,31 @@ class QAOADataset(Dataset):
         self.in_features = [f for f in requested_in if f in VALID_IN_FEATURES]
         self.out_features = [f for f in requested_out if f in VALID_OUT_FEATURES]
 
+        self.samples = self._read_summary_for_p()
+
         if any(
             f in {"opt_max_cut", "opt_min_cut", "opt_approx_ratio"}
             for f in self.out_features
-        ) and not (self.compute_cut_metrics or self.cut_metrics_dir):
-            logger.warning(
-                "Requested max-cut features but compute_cut_metrics=False; returning NaN for them."
-            )
-
-        self.samples = self._read_summary_for_p()
+        ) and not self.compute_cut_metrics:
+            missing = [
+                s for s in self.samples
+                if self.cut_metrics_dir is None
+                or not (
+                    self.cut_metrics_dir / s["instance_set"] / f"{s['instance_id']}.json"
+                ).exists()
+            ]
+            if missing:
+                example = (
+                    self.cut_metrics_dir / missing[0]["instance_set"]
+                    / f"{missing[0]['instance_id']}.json"
+                    if self.cut_metrics_dir else None
+                )
+                logger.warning(
+                    "Max-cut files missing for %d of %d instances (e.g. %s). Approximation "
+                    "ratios and reach are NaN for these instances. See the README section "
+                    "'Max-cut values'.",
+                    len(missing), len(self.samples), example,
+                )
 
     def _read_summary_for_p(self) -> list[dict]:
         # Load summary file
@@ -333,6 +349,19 @@ class QAOADataset(Dataset):
             raise ValueError(
                 f"Normalization stats missing X features: {sorted(missing_x)}"
             )
+
+        for f in expected_x:
+            v = stats["x"][f]
+            if not (
+                isinstance(v, (list, tuple))
+                and len(v) == 2
+                and all(isinstance(s, (int, float)) for s in v)
+            ):
+                raise ValueError(
+                    f"norm_stats['x'][{f!r}] must be [mean, std], got {v!r}. "
+                    "Split files from older versions of testset_generation.py "
+                    "store {'mean': ..., 'std': ...}; regenerate them."
+                )
 
     def set_normalizer_stats(self, stats: dict | None) -> None:
         self.validate_normalizer_stats(stats)
