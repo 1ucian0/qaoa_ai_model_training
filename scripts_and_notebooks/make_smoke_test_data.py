@@ -41,6 +41,17 @@ def _make_graph(rng: random.Random, num_nodes: int) -> dict:
     return {"edge list": edges}
 
 
+def _max_min_cut(graph: dict) -> dict:
+    """Exact max and min cut by enumeration, feasible for the small graphs generated here."""
+    edges = graph["edge list"]
+    num_nodes = 1 + max(max(e["nodes"]) for e in edges)
+    cuts = [
+        sum(e["weight"] for e in edges if (s >> e["nodes"][0] & 1) != (s >> e["nodes"][1] & 1))
+        for s in range(2**num_nodes)
+    ]
+    return {"max_cut": float(max(cuts)), "min_cut": float(min(cuts))}
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--out_dir", type=Path, required=True)
@@ -53,6 +64,9 @@ def main():
     instance_dir = graph_dir / "instances" / INSTANCE_SET
     instance_dir.mkdir(parents=True, exist_ok=True)
 
+    max_cut_dir = graph_dir / "max_cuts" / INSTANCE_SET
+    max_cut_dir.mkdir(parents=True, exist_ok=True)
+
     results_dir = graph_dir / f"results_p{P}"
     results_dir.mkdir(parents=True, exist_ok=True)
 
@@ -62,6 +76,7 @@ def main():
         num_nodes = rng.randint(6, 10)
         graph = _make_graph(rng, num_nodes)
         (instance_dir / f"{instance_id}.json").write_text(json.dumps(graph, indent=2))
+        (max_cut_dir / f"{instance_id}.json").write_text(json.dumps(_max_min_cut(graph), indent=2))
 
         best_param[INSTANCE_SET][instance_id] = {
             str(P): {
