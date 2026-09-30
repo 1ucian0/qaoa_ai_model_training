@@ -34,10 +34,17 @@ dependencies = [
     "tensorboard>=2.12.0",
     "matplotlib>=3.7",
     "qiskit-aer",
-    "qaoa_training_pipeline[tns] @ git+https://github.com/qiskit-community/qaoa_training_pipeline",
+    "qaoa_training_pipeline @ git+https://github.com/qiskit-community/qaoa_training_pipeline",
+    "quimb>=1.8.2",
+    "cotengra<=0.8.1",
 ]
 
 [project.optional-dependencies]
+# Julia backend for PPEvaluator, only required for QAOA depth p > 1 (see README).
+julia = [
+    "qaoa_training_pipeline[tns] @ git+https://github.com/qiskit-community/qaoa_training_pipeline",
+    "juliacall<0.9.35",
+]
 # Compiled PyTorch Geometric stack, only required for the gcn, graph_isomorphism_network,
 # and graph_transformer models. Install after torch, with --no-build-isolation (see README).
 graph = [
