@@ -26,6 +26,8 @@ All commands below are run from the repository root.
    python -m scripts_and_notebooks.testset_generation --graphs_repo /tmp/qaoa_smoke_test --instance_sets smoke_test
    python -m scripts_and_notebooks.build_per_p_split --graphs_repo /tmp/qaoa_smoke_test --target_p 1
    python -m training.training_script --config configs/sample_configs/smoke_test_config.yaml
+   python -m training.testing_script --config configs/sample_configs/smoke_test_config.yaml \
+     --ckpt_path checkpoints/smoke_test/smoke_test/last.ckpt
    ```
    This uses random, non-optimized angles purely to check that installation and the pipeline mechanics work end to end. Do not use the resulting checkpoint for anything else.
 3. With real data, follow [Data](#data) to lay out `graph_dir`, then [Configuration](#configuration), [Training](#training) and [Testing](#testing) in order.
@@ -218,9 +220,11 @@ A fixed-angle result has the following format:
 
 ## Setup
 
-Requires Python 3.11+.
+Requires Python 3.11+. Clone the repository and install the package into a fresh virtual environment:
 
 ```bash
+git clone <repository-url>
+cd qaoa_ai_model_training
 pip install -e .
 ```
 
@@ -233,6 +237,12 @@ python -m pip install -e ".[graph]" --no-build-isolation
 ```
 
 `--no-build-isolation` stops `torch-scatter` from building against a fresh, torch-less environment instead of the one you just installed `torch` into.
+
+The tutorial notebook needs Jupyter, which is included in the `notebooks` extra:
+
+```bash
+pip install -e ".[notebooks]"
+```
 
 
 ### Julia for QAOA depth greater than 1
@@ -296,7 +306,7 @@ Test a checkpoint with:
 ```bash
 python -m training.testing_script \
   --config configs/sample_configs/sample_config.yaml \
-  --ckpt_path checkpoints/p_1/rr/last.ckpt
+  --ckpt_path checkpoints/p_1/qaoa_graph_neural_network_p1/last.ckpt
 ```
 
 To evaluate several checkpoints, run `training.testing_script` once for each configuration and checkpoint pair.
