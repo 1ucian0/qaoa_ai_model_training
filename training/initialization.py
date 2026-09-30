@@ -56,9 +56,12 @@ def init_from_config(cfg: dict) -> tuple:
 
     logger.info("Instance sets: %s", instance_sets)
 
+    # Split files as written by scripts_and_notebooks/build_per_p_split.py
+    splits_dir = graph_dir / "splits" / f"p_{p}"
+
     default_summary = results_dir / "best_param.json"
-    default_split   = results_dir / "train_val_split.json"
-    default_test    = results_dir / "test_split.json"
+    default_split   = splits_dir / "train_val_split.json"
+    default_test    = splits_dir / "test_split.json"
 
     # Allow overrides from config, otherwise use defaults
     summary_file = Path(data.get("summary_file", default_summary))
@@ -71,6 +74,18 @@ def init_from_config(cfg: dict) -> tuple:
     logger.info("Summary file: %s", summary_file)
     logger.info("Split file: %s", split_file)
     logger.info("Test file: %s", test_file)
+
+    if not test_file.exists():
+        logger.warning(
+            "Test split file not found: %s. No instances are held out, and testing will fail. "
+            "Run scripts_and_notebooks/testset_generation.py and build_per_p_split.py, "
+            "or set data.test_file.", test_file,
+        )
+    if not split_file.exists():
+        logger.warning(
+            "Train/val split file not found: %s. A random train/val split is created instead.",
+            split_file,
+        )
 
     if bool(data.get("recompute_norm_stats", False)):
         norm_stats = None
