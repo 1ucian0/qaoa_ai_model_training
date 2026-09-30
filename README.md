@@ -39,7 +39,7 @@ The pipeline expects the directory specified by `data.graph_dir` to follow this 
 ```text
 <graph_dir>/
   instances/            # graph instances used as model inputs
-  max_cuts/             # optional precomputed max-cut values
+  max_cuts/             # max/min cut values, needed for approximation-ratio metrics
   fixed_angle_cuts/     # optional fixed-angle baseline results
   results_p<P>/         # QAOA optimization results for depth P
   splits/               # train, validation and test splits
@@ -79,15 +79,21 @@ Every instance ID must be unique across all instance sets that are combined in o
 
 ### 2. Max-cut values
 
-Precomputed maximum and minimum cut values are optional but speed up evaluation.
+Maximum and minimum cut values are needed to compute approximation ratios and `reach` during validation and testing. Training itself does not need them, since the loss is computed on the angles, but without them these metrics are `NaN` and a warning reports how many files are missing.
 
-Store them under
+Store one file per instance, named like the instance file, under
 
 ```text
-<graph_dir>/max_cuts/<instance_set>/
+<graph_dir>/max_cuts/<instance_set>/<instance_id>.json
 ```
 
-They can be generated with `scripts/compute_mc_for_graph.py` from `QAOA-Parameter-Setting`. For example:
+Each file needs the keys `max_cut` and `min_cut`:
+
+```json
+{"max_cut": 16.0, "min_cut": 0.0}
+```
+
+They can be generated with `scripts/compute_mc_for_graph.py` from `QAOA-Parameter-Setting`, which requires CPLEX (`pip install "qiskit-optimization[cplex]"`). For example:
 
 ```bash
 for f in <graph_dir>/instances/random_regular/*.json; do
@@ -95,8 +101,6 @@ for f in <graph_dir>/instances/random_regular/*.json; do
     -o "<graph_dir>/max_cuts/random_regular/$(basename "$f")"
 done
 ```
-
-If these files are not available, `training/eval_step.py` computes the required values during evaluation.
 
 ### 3. QAOA optimization results
 
@@ -139,7 +143,18 @@ For training, each `results_p<P>/` directory also needs a `best_param.json` cont
 }
 ```
 
-`QAOA-Parameter-Setting` provides `BestParameterManager` for aggregating optimization results. 
+`<p>` is the depth as a string, for example `"3"`, and `qaoa_angles` is ordered `[beta_1, ..., beta_p, gamma_1, ..., gamma_p]`.
+
+`QAOA-Parameter-Setting` provides `BestParameterManager` for aggregating optimization results. Its summary is grouped by evaluator (`SV`, `PP` or `MPS`) instead of instance set, so convert it with
+
+```bash
+python -m scripts_and_notebooks.build_best_param \
+  --summary best_parameters_summary.json \
+  --graphs_repo <graph_dir> \
+  --evaluators SV
+```
+
+This looks up the instance set of each instance under `<graph_dir>/instances/` and writes `results_p<P>/best_param.json` for every depth in the summary. Instances without an instance file are skipped. If you list several evaluators, the entry with the highest energy is kept for each instance and depth.
 
 ### 4. Train, validation and test splits
 
@@ -168,7 +183,7 @@ splits/p_<P>/train_val_split.json
 splits/p_<P>/test_split.json
 ```
 
-Point `data.split_file` and `data.test_file` in the configuration to these files.
+Training and testing pick up these files and the normalization statistics stored in `train_val_split.json` automatically from `data.graph_dir` and `data.p`. To use split files from another location, set `data.split_file` and `data.test_file` in the configuration.
 
 ### Fixed-angle baseline
 
@@ -222,15 +237,14 @@ python -m pip install -e ".[graph]" --no-build-isolation
 
 ### Julia for QAOA depth greater than 1
 
-This repo depends on [`qaoa_training_pipeline`](https://github.com/qiskit-community/qaoa_training_pipeline), installed with its `tns` extra that pulls in `juliacall`.
-
-For `p > 1`, the pipeline uses `PPEvaluator`, which relies on [PauliPropagation.jl](https://github.com/MSRudolph/PauliPropagation.jl). Install Julia itself, then run:
+Runs with `p = 1` do not need Julia. For `p > 1`, the pipeline uses `PPEvaluator` from [`qaoa_training_pipeline`](https://github.com/qiskit-community/qaoa_training_pipeline), which relies on [PauliPropagation.jl](https://github.com/MSRudolph/PauliPropagation.jl) through `juliacall`. Install the `julia` extra, then run the setup script:
 
 ```bash
+pip install -e ".[julia]"
 python link-julia-python.py
 ```
 
-The setup script installs `PauliPropagation.jl` into the Julia environment.
+If Julia is not installed, `juliacall` downloads a compatible version into the virtual environment on first use. An existing Julia installation, for example from [juliaup](https://github.com/JuliaLang/juliaup), is used otherwise. The setup script installs `PauliPropagation.jl` into the Julia environment and checks that the Python–Julia bridge works.
 
 `juliacall` must be imported before `torch` to avoid a segfault. The package handles this import order internally. Dataloader workers use the spawn start method because `juliacall` is not fork-safe.
 
@@ -243,7 +257,7 @@ The main settings to change are:
 - **`data.graph_dir`**: root directory containing the graph data
 - **`data.p`**: QAOA depth. Start with `p = 1` if you want to run the pipeline without Julia
 - **`data.instance_set`**: instance sets used for training
-- **`data.norm_stats`**: feature normalization statistics. Providing them explicitly gives reproducible normalization
+- **`data.norm_stats`**: optional feature normalization statistics. If omitted, the statistics stored in the train/val split file are used
 - **`model.model_type`**: model architecture from `MODEL_REGISTRY`
 
 Multiple instance sets can be listed to train one model across different graph families.
@@ -355,6 +369,7 @@ The data preparation utilities are:
 | File | Purpose |
 |---|---|
 | `datamodule_tutorial.ipynb` | Walkthrough of the datamodule, normalization and splits |
+| `build_best_param.py` | Convert a `BestParameterManager` summary into `results_p<P>/best_param.json` |
 | `testset_generation.py` | Generate the master train, validation and test split |
 | `build_per_p_split.py` | Filter a split to instances available at a given QAOA depth |
 
