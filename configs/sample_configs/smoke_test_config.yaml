@@ -7,6 +7,8 @@
 #   python -m scripts_and_notebooks.testset_generation --graphs_repo /tmp/qaoa_smoke_test --instance_sets smoke_test
 #   python -m scripts_and_notebooks.build_per_p_split --graphs_repo /tmp/qaoa_smoke_test --target_p 1
 #   python -m training.training_script --config configs/sample_configs/smoke_test_config.yaml
+#   python -m training.testing_script --config configs/sample_configs/smoke_test_config.yaml \
+#     --ckpt_path checkpoints/smoke_test/smoke_test/last.ckpt
 
 seed: 42
 

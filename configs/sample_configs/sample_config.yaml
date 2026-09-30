@@ -81,6 +81,10 @@ trainer:
   ckpt_dir: ./checkpoints/p_1/
   run_name: qaoa_graph_neural_network_p1
 
+  # true, false, or warn. warn uses deterministic algorithms where available
+  # and only warns for ops without one, e.g. on Apple MPS.
+  deterministic: true
+
   log_every_n_steps: 10
   check_val_every_n_epoch: 2
 
