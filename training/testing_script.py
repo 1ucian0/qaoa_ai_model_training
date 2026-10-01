@@ -12,6 +12,7 @@ except ImportError:
 import argparse
 import logging
 import pathlib
+from datetime import datetime
 from pathlib import Path
 
 import torch.serialization
@@ -41,11 +42,13 @@ def parse_args():
 
 
 def test(cfg: dict, ckpt_path: Path) -> None:
-    full_log_path = Path(cfg["trainer"]["log_dir"]) / cfg["trainer"]["run_name"] / "testing"
-    full_log_path.mkdir(parents=True, exist_ok=True)
-    logger.info("Test logs will be written to: %s", full_log_path)
+    # One timestamped folder per test run for repeated runs
+    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    full_log_path = Path(cfg["trainer"]["log_dir"]) / cfg["trainer"]["run_name"] / "testing" / run_id
+    logger.info("Test outputs will be written to: %s", full_log_path)
 
     datamodule, model = init_from_config(cfg)
+    model.test_output_dir = full_log_path
     trainer = build_trainer(cfg)
 
     logger.info("Testing with ckpt_path=%s", ckpt_path)
