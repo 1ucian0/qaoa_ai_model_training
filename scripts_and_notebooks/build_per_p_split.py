@@ -45,7 +45,7 @@ def main():
     for f in (best_param_file, master_test, master_split):
         if not f.exists():
             sys.exit(f"Error: required file missing: {f}\n"
-                     f"  Hint: build results_p{args.target_p}/best_param.json (see readme.md), "
+                     f"  Build results_p{args.target_p}/best_param.json (see README.md), "
                      f"then run scripts_and_notebooks/testset_generation.py to produce the master splits.")
 
     available = _available_instance_ids(best_param_file)
