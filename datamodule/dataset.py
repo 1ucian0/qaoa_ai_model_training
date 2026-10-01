@@ -109,9 +109,7 @@ class QAOADataset(Dataset):
             missing = [
                 s for s in self.samples
                 if self.cut_metrics_dir is None
-                or not (
-                    self.cut_metrics_dir / s["instance_set"] / f"{s['instance_id']}.json"
-                ).exists()
+                or not self._cut_metrics_path(s["instance_id"], s["instance_set"]).exists()
             ]
             if missing:
                 example = (
@@ -217,15 +215,22 @@ class QAOADataset(Dataset):
             raise FileNotFoundError(f"Graph instance path not found: {graph_path}")
         return load_graph(graph_path)
 
+    def _cut_metrics_path(self, instance_id: str, instance_set: str) -> Path:
+        """
+        Path of the cut metrics file for instance_id. Accepts <instance_id>.json and
+        <instance_id>_maxmin_cut.json (as e.g. in QAOA-Parameter-Setting).
+        """
+        path = self.cut_metrics_dir / instance_set / f"{instance_id}.json"
+        alt_path = path.with_name(f"{instance_id}_maxmin_cut.json")
+        return alt_path if not path.exists() and alt_path.exists() else path
+
     def _load_cut_metrics(
         self, instance_id: str, instance_set: str
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Load cut metrics from instance_id.
         """
-        cut_metrics_path = (
-            self.cut_metrics_dir / instance_set / f"{instance_id}.json"
-        )
+        cut_metrics_path = self._cut_metrics_path(instance_id, instance_set)
         if not cut_metrics_path.exists():
             raise FileNotFoundError(f"Cut metrics path not found: {cut_metrics_path}")
 
@@ -427,7 +432,7 @@ class QAOADataset(Dataset):
         x["instance_set"] = s["instance_set"]
 
         cut_metrics_path = (
-            self.cut_metrics_dir / s["instance_set"] / f"{s['instance_id']}.json"
+            self._cut_metrics_path(s["instance_id"], s["instance_set"])
             if self.cut_metrics_dir
             else None
         )
