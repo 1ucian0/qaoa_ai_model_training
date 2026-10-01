@@ -192,7 +192,8 @@ class QAOAEvalMixin:
 
     def compute_mean_std(self, values: list[float]) -> tuple[torch.Tensor, torch.Tensor]:
         if not values:
-            z = torch.tensor(0.0, device=self.device)
+            # NaN marks "no data" (e.g. missing fixed-angle results) which is written as empty in CSV
+            z = torch.tensor(float("nan"), device=self.device)
             return z, z
 
         t = torch.tensor(values, dtype=torch.float32, device=self.device)
@@ -251,13 +252,20 @@ class QAOAEvalMixin:
             fixed_angle_ar = float(fa_ratio)
         else:
             # return None to indicate missing data
-            warnings.warn(
-                "Fixed Angle json not found. Fixed angle AR and parameters will not be available for comparison."
-            )
             fixed_angle_ar = None
             fa_betas, fa_gammas = None, None
 
         return fixed_angle_ar, fa_betas, fa_gammas
+
+    def _warn_missing_fixed_angle(self, metrics: dict[str, list], stage: str) -> None:
+        total = len(metrics["energy"])
+        missing = total - len(metrics["fixed_angle_approx_ratio"])
+        if missing:
+            warnings.warn(
+                f"[{stage}] Fixed angle json not found for {missing}/{total} instances "
+                f"in {self.fixed_angle_dir}. Fixed angle metrics exclude these instances "
+                "and are NaN if none are available."
+            )
 
     def _evaluate_and_log_sample(
         self,
@@ -350,8 +358,8 @@ class QAOAEvalMixin:
                 else None,
             }
             for j in range(self.depth):
-                row[f"beta_{j}"] = float(betas_i[j])
-                row[f"gamma_{j}"] = float(gammas_i[j])
+                row[f"beta_{j + 1}"] = float(betas_i[j])
+                row[f"gamma_{j + 1}"] = float(gammas_i[j])
             per_instance.append(row)
 
         # Log global metrics
@@ -431,7 +439,7 @@ class QAOAEvalMixin:
         )
 
         # Validation approximation-ratio / energy evaluation is computed only for
-        # p==1 (cheap EfficientDepthOneEvaluator).  TODO maybe change back
+        # p==1 (cheap EfficientDepthOneEvaluator), p>=2 is evaluated at test time
         if int(self.depth) != 1:
             return
 
@@ -452,7 +460,7 @@ class QAOAEvalMixin:
             )
 
     def on_validation_epoch_end(self) -> None:
-        # For p>=2 validation logs only val/loss (no per-sample QAOA metrics) TODO maybe change back
+        # For p>=2 validation logs only val/loss (no per-sample QAOA metrics) due to compute efficiency
         if int(self.depth) != 1:
             return
 
@@ -466,6 +474,7 @@ class QAOAEvalMixin:
             float(len(self._val_metrics["fixed_angle_approx_ratio"])),
             prog_bar=False,
         )
+        self._warn_missing_fixed_angle(self._val_metrics, "val")
 
         energy_mean, energy_std = self.compute_mean_std(self._val_metrics["energy"])
         ratio_mean, ratio_std = self.compute_mean_std(self._val_metrics["approx_ratio"])
@@ -720,6 +729,7 @@ class QAOAEvalMixin:
             float(len(self._test_metrics["fixed_angle_approx_ratio"])),
             prog_bar=False,
         )
+        self._warn_missing_fixed_angle(self._test_metrics, "test")
 
         ratio_mean, ratio_std = self.compute_mean_std(
             self._test_metrics["approx_ratio"]
@@ -849,7 +859,8 @@ class QAOAEvalMixin:
 
         try:
             out_dir = Path(
-                getattr(self.trainer, "log_dir", None)
+                getattr(self, "test_output_dir", None)
+                or getattr(self.trainer, "log_dir", None)
                 or self.trainer.default_root_dir
                 or "."
             )
@@ -944,7 +955,8 @@ class QAOAEvalMixin:
                 return
 
             out_dir = Path(
-                getattr(self.trainer, "log_dir", None)
+                getattr(self, "test_output_dir", None)
+                or getattr(self.trainer, "log_dir", None)
                 or self.trainer.default_root_dir
                 or "."
             )
