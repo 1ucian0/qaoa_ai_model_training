@@ -1,23 +1,19 @@
 # Copyright IBM Corp. 2026
 # License: Apache-2.0
 
-"""Build results_p<P>/best_param.json from a QAOA-Parameter-Setting summary.
+"""Build results_p<P>/best_param.json from raw qaoa_training_pipeline results.
 
-BestParameterManager in QAOA-Parameter-Setting writes a summary grouped by
-evaluator (e.g. "SV", "PP", "MPS") and keyed by instance filename. This
-pipeline expects best_param.json grouped by instance set instead. This script
-looks up the instance set of every instance in <graph_dir>/instances/<set>/,
-keeps only the chosen evaluators, and writes one best_param.json per depth.
+Reads every result JSON written by `python -m qaoa_training_pipeline.train --save`
+under the given folders. For each instance and depth, the candidate with the
+highest energy is kept, and one best_param.json is written per depth.
 
-Instances without a file under <graph_dir>/instances/ are skipped. If several
-evaluators are chosen and have results for the same instance and depth, the
-entry with the highest energy is kept.
+Instances without a file under <graph_dir>/instances/ are skipped. Results not
+run with --pre_factor -0.5 (MaxCut) are rejected for the current version of this repo.
 
 Usage:
     python -m scripts_and_notebooks.build_best_param \\
-        --summary best_parameters_summary.json \\
-        --graphs_repo <graph_dir> \\
-        --evaluators SV
+        --results <graph_dir>/results_p1 <graph_dir>/results_p3 \\
+        --graphs_repo <graph_dir>
 """
 
 import argparse
@@ -40,15 +36,24 @@ def _instance_sets_by_id(instance_dir: Path) -> dict[str, str]:
     return owners
 
 
+def _candidates(result: dict):
+    """Yield (qaoa_angles, energy) for every pipeline stage with a numeric energy."""
+    for stage in result.values():
+        if not isinstance(stage, dict):
+            continue
+        angles, energy = stage.get("optimized_qaoa_angles"), stage.get("energy")
+        # Stages that did not train (e.g. a recursion to the start depth) store "NA"
+        if angles and len(angles) % 2 == 0 and isinstance(energy, (int, float)):
+            yield angles, float(energy)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--summary", type=Path, required=True,
-                   help="Summary JSON written by BestParameterManager.save_summary.")
+    p.add_argument("--results", type=Path, nargs="+", required=True,
+                   help="Folders with qaoa_training_pipeline result JSONs, searched recursively.")
     p.add_argument("--graphs_repo", type=Path, required=True)
-    p.add_argument("--evaluators", nargs="+", required=True,
-                   help="Top-level summary groups to use, e.g. SV or PP.")
     p.add_argument("--depths", type=int, nargs="+", default=None,
-                   help="QAOA depths to write. Defaults to all depths in the summary.")
+                   help="QAOA depths to write. Defaults to all depths found.")
     args = p.parse_args()
 
     repo = args.graphs_repo.resolve()
@@ -56,33 +61,38 @@ def main():
     if not instance_dir.is_dir():
         sys.exit(f"Error: instance dir not found: {instance_dir}")
 
-    summary = json.loads(args.summary.read_text())
-    unknown = [e for e in args.evaluators if e not in summary]
-    if unknown:
-        sys.exit(f"Error: evaluators {unknown} not in summary. Available: {sorted(summary)}")
-
     owners = _instance_sets_by_id(instance_dir)
 
-    # best[p][instance_set][instance_id] = entry
+    # best[p][instance_set][instance_id] = {p: entry}
     best: dict[str, dict[str, dict[str, dict]]] = {}
     skipped: set[str] = set()
-    for evaluator in args.evaluators:
-        for instance_key, by_depth in summary[evaluator].items():
-            instance_id = Path(instance_key).stem
-            instance_set = owners.get(instance_id)
-            if instance_set is None:
-                skipped.add(instance_id)
+    for result_file in sorted(f for d in args.results for f in d.rglob("*.json")):
+        result = json.loads(result_file.read_text())
+        run_args = result.get("args") if isinstance(result, dict) else None
+        if not isinstance(run_args, dict) or "input" not in run_args:
+            continue  # not a qaoa_training_pipeline result, e.g. best_param.json
+        if run_args.get("pre_factor") != -0.5:
+            sys.exit(f"Error: {result_file} was not run with --pre_factor -0.5.")
+        instance_id = Path(run_args["input"]).stem
+        instance_set = owners.get(instance_id)
+        if instance_set is None:
+            skipped.add(instance_id)
+            continue
+        for angles, energy in _candidates(result):
+            depth = str(len(angles) // 2)
+            if args.depths is not None and int(depth) not in args.depths:
                 continue
-            for depth, entry in by_depth.items():
-                if args.depths is not None and int(depth) not in args.depths:
-                    continue
-                by_id = best.setdefault(depth, {}).setdefault(instance_set, {})
-                current = by_id.get(instance_id)
-                if current is None or entry["energy"] > current[depth]["energy"]:
-                    by_id[instance_id] = {depth: entry}
+            by_id = best.setdefault(depth, {}).setdefault(instance_set, {})
+            current = by_id.get(instance_id)
+            if current is None or energy > current[depth]["energy"]:
+                by_id[instance_id] = {depth: {
+                    "energy": energy,
+                    "qaoa_angles": angles,
+                    "result_file_name": result_file.name,
+                }}
 
     if not best:
-        sys.exit("Error: no summary entries matched the instance files and depths given.")
+        sys.exit("Error: no results matched the instance files and depths given.")
 
     for depth in sorted(best, key=int):
         out_file = repo / f"results_p{depth}" / "best_param.json"
@@ -92,7 +102,7 @@ def main():
         print(f"p={depth}: {counts} -> {out_file}")
 
     if skipped:
-        print(f"Skipped {len(skipped)} summary instances without a file under {instance_dir}")
+        print(f"Skipped {len(skipped)} result instances without a file under {instance_dir}")
 
 
 if __name__ == "__main__":
