@@ -45,8 +45,8 @@ def test_per_instance_writer_exists():
 
 def test_predicted_angles_are_recorded(eval_source):
     """beta_<j>/gamma_<j> let the CSV alone reproduce downstream comparisons."""
-    assert 'f"beta_{j}"' in eval_source
-    assert 'f"gamma_{j}"' in eval_source
+    assert 'f"beta_{j + 1}"' in eval_source
+    assert 'f"gamma_{j + 1}"' in eval_source
 
 
 def test_instance_set_is_not_a_model_input():
