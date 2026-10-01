@@ -42,12 +42,12 @@ The pipeline expects the directory specified by `data.graph_dir` to follow this 
 <graph_dir>/
   instances/            # graph instances used as model inputs
   max_cuts/             # max/min cut values, needed for approximation-ratio metrics
-  fixed_angle_cuts/     # optional fixed-angle baseline results
-  results_p<P>/         # QAOA optimization results for depth P
+  fixed_angle_cuts/     # optional fixed-angle baseline results, under p_<P>/<instance_set>/
+  results_p<P>/         # best_param.json with the label angles for depth P
   splits/               # train, validation and test splits
 ```
 
-The required data can be generated using the conventions and utilities from [`QAOA-Parameter-Setting`](https://github.com/Quantum-Working-Groups/QAOA-Parameter-Setting) together with the `qaoa_training_pipeline` package it depends on.
+The required data can be generated with [`qaoa_training_pipeline`](https://github.com/qiskit-community/qaoa_training_pipeline), which is installed with this package. The steps below show how.
 
 ### 1. Graph instances
 
@@ -75,13 +75,23 @@ Each graph is stored as a JSON edge list with per-edge weights:
 }
 ```
 
-See the [`QAOA-Parameter-Setting` instance documentation](https://github.com/Quantum-Working-Groups/QAOA-Parameter-Setting/tree/main/instances) for the expected schema and filename conventions.
+For example, a random 3-regular graph can be written with
+
+```python
+import json
+import networkx as nx
+from qaoa_training_pipeline.utils.graph_utils import graph_to_dict
+
+graph = nx.random_regular_graph(3, 10, seed=0)
+with open("<graph_dir>/instances/random_regular/rr3_n10_s0.json", "w") as f:
+    json.dump(graph_to_dict(graph), f)
+```
 
 Every instance ID must be unique across all instance sets that are combined in one dataset.
 
 ### 2. Max-cut values
 
-Maximum and minimum cut values are needed to compute approximation ratios and `reach` during validation and testing. Training itself does not need them, since the loss is computed on the angles, but without them these metrics are `NaN` and a warning reports how many files are missing.
+Maximum and minimum cut values are needed to compute approximation ratios and `reach` during testing, and during validation for `p = 1`. Training itself does not need them, since the loss is computed on the angles, but without them these metrics are `NaN` and a warning reports how many files are missing.
 
 Store one file per instance, named like the instance file, under
 
@@ -95,41 +105,27 @@ Each file needs the keys `max_cut` and `min_cut`:
 {"max_cut": 16.0, "min_cut": 0.0}
 ```
 
-They can be generated with `scripts/compute_mc_for_graph.py` from `QAOA-Parameter-Setting`, which requires CPLEX (`pip install "qiskit-optimization[cplex]"`). For example:
+They can be computed with `solve_max_cut` from `qaoa_training_pipeline`, which requires CPLEX (`pip install cplex`). For example:
 
-```bash
-for f in <graph_dir>/instances/random_regular/*.json; do
-  python scripts/compute_mc_for_graph.py "$f" \
-    -o "<graph_dir>/max_cuts/random_regular/$(basename "$f")"
-done
+```python
+import json
+from pathlib import Path
+from qaoa_training_pipeline.utils.graph_utils import graph_to_operator, load_graph, solve_max_cut
+
+out_dir = Path("<graph_dir>/max_cuts/random_regular")
+out_dir.mkdir(parents=True, exist_ok=True)
+for f in Path("<graph_dir>/instances/random_regular").glob("*.json"):
+    max_cut, min_cut, _ = solve_max_cut(graph_to_operator(load_graph(f), pre_factor=-0.5))
+    (out_dir / f.name).write_text(json.dumps({"max_cut": max_cut, "min_cut": min_cut}))
 ```
 
 ### 3. QAOA optimization results
 
 The supervised labels are optimized QAOA parameters for each graph instance and QAOA depth.
 
-Store the raw optimization results under
+You can use any QAOA parameter optimization strategy to produce them. Raw optimization results are kept under `<graph_dir>/results_p<P>/<instance_set>/`, but the pipeline does not rely on them. They are only used as input for building `best_param.json` (see below), so keeping them is optional.
 
-```text
-<graph_dir>/results_p<P>/<instance_set>/
-```
-
-For example:
-
-```text
-<graph_dir>/
-└── results_p3/
-    ├── random_regular/
-    │   ├── <result>.json
-    │   └── ...
-    └── erdos_renyi/
-        ├── <result>.json
-        └── ...
-```
-
-You can use any QAOA parameter optimization strategy that produces the required results. [`QAOA-Parameter-Setting`](https://github.com/Quantum-Working-Groups/QAOA-Parameter-Setting) provides example strategies and utilities for generating them.
-
-For training, each `results_p<P>/` directory also needs a `best_param.json` containing the best angle and energy pair for every instance:
+The only file training and testing read from `results_p<P>/` is `best_param.json`, which holds the best angle and energy pair for every instance:
 
 ```text
 {
@@ -147,16 +143,35 @@ For training, each `results_p<P>/` directory also needs a `best_param.json` cont
 
 `<p>` is the depth as a string, for example `"3"`, and `qaoa_angles` is ordered `[beta_1, ..., beta_p, gamma_1, ..., gamma_p]`.
 
-`QAOA-Parameter-Setting` provides `BestParameterManager` for aggregating optimization results. Its summary is grouped by evaluator (`SV`, `PP` or `MPS`) instead of instance set, so convert it with
+#### Generating results with qaoa_training_pipeline
+
+[`configs/qaoa_methods/fixed_start_recursion_SV.json`](configs/qaoa_methods/fixed_start_recursion_SV.json) optimizes the angles with an exact statevector simulation. It starts from the 3-regular `p = 1` fixed angles, extends them by recursion to depth `p` and refines them. Run it for every instance and depth:
+
+```bash
+for p in 1 3; do
+  for f in <graph_dir>/instances/random_regular/*.json; do
+    python -m qaoa_training_pipeline.train \
+      --input "$f" \
+      --config configs/qaoa_methods/fixed_start_recursion_SV.json \
+      --pre_factor -0.5 \
+      --component_kwargs0 reps:$p \
+      --save --save_dir <graph_dir>/results_p$p/random_regular/ \
+      --save_file "$(basename "$f")"
+  done
+done
+```
+
+`--pre_factor -0.5` defines the MaxCut cost operator and `--component_kwargs0 reps:<p>` sets the depth. Statevector simulation scales exponentially with the number of nodes, so use another evaluator of `qaoa_training_pipeline` for larger graphs.
+
+Then collect the best angles per instance and depth with
 
 ```bash
 python -m scripts_and_notebooks.build_best_param \
-  --summary best_parameters_summary.json \
-  --graphs_repo <graph_dir> \
-  --evaluators SV
+  --results <graph_dir>/results_p1 <graph_dir>/results_p3 \
+  --graphs_repo <graph_dir>
 ```
 
-This looks up the instance set of each instance under `<graph_dir>/instances/` and writes `results_p<P>/best_param.json` for every depth in the summary. Instances without an instance file are skipped. If you list several evaluators, the entry with the highest energy is kept for each instance and depth.
+This reads all result files under the given folders, keeps the angles with the highest energy over all pipeline stages for each instance and depth, and writes `results_p<P>/best_param.json` for every depth found. The instance set of each instance is looked up under `<graph_dir>/instances/`, and instances without an instance file are skipped.
 
 ### 4. Train, validation and test splits
 
@@ -168,7 +183,7 @@ python -m scripts_and_notebooks.testset_generation \
   --instance_sets random_regular erdos_renyi
 ```
 
-This also generates the normalization statistics used by the models.
+This also generates the normalization statistics used by the models. By default, 15% of the instances are held out for testing (`--test_fraction`) and 90% of the rest are used for training (`--train_fraction`).
 
 For a specific QAOA depth, filter the split to instances that have optimization results at that depth:
 
@@ -193,7 +208,10 @@ Training and testing pick up these files and the normalization statistics stored
 
 To reproduce our fixed-angle baseline:
 
-1. Download `angles_regular_graphs.json` from [danlkv/fixed-angle-QAOA at commit `956be14`](https://github.com/danlkv/fixed-angle-QAOA/blob/956be1450c9d1f1957d3189a6603264d13163088/angles_regular_graphs.json).
+1. Download `angles_regular_graphs.json` from [danlkv/fixed-angle-QAOA at commit `956be14`](https://github.com/danlkv/fixed-angle-QAOA/blob/956be1450c9d1f1957d3189a6603264d13163088/angles_regular_graphs.json):
+   ```bash
+   curl -LO https://raw.githubusercontent.com/danlkv/fixed-angle-QAOA/956be1450c9d1f1957d3189a6603264d13163088/angles_regular_graphs.json
+   ```
 2. For each instance set, run:
    ```bash
    python -m scripts_and_notebooks.compute_fixed_angle_cuts \
@@ -210,9 +228,9 @@ A fixed-angle result has the following format:
 
 ```json
 {
-  "fixed_angle_cut": 7.634962789623944,
-  "betas": [0.3926821085699073],
-  "gammas": [1.1598139097947238]
+  "fixed_angle_cut": 9.886767290492752,
+  "betas": [0.3926720292447629],
+  "gammas": [0.615533629093832]
 }
 ```
 
@@ -316,9 +334,10 @@ Each run writes
 ```text
 test_metrics.csv
 test_per_instance.csv
+reach_distribution.png
 ```
 
-to its log directory.
+to a timestamped folder `<log_dir>/<run_name>/testing/<YYYYMMDD_HHMMSS>/`, so repeated runs do not overwrite each other.
 
 ### Analysing results
 
@@ -327,13 +346,14 @@ to its log directory.
 | Column | Meaning |
 |---|---|
 | `instance_id`, `instance_set` | Graph instance and source instance set |
+| `graph_type` | Same value as `instance_set`, e.g. `random_regular` |
 | `node_count`, `num_edges`, `depth_p` | Graph size and QAOA depth |
 | `reach` | Model approximation ratio divided by the optimal-angle approximation ratio |
 | `approx_ratio` | Approximation ratio obtained from the predicted angles |
 | `opt_approx_ratio` | Approximation ratio obtained from the reference angles |
 | `energy` | QAOA energy obtained from the predicted angles |
 | `fixed_angle_approx_ratio` | Fixed-angle baseline when available |
-| `beta_<j>`, `gamma_<j>` | Predicted QAOA angles |
+| `beta_<j>`, `gamma_<j>` | Predicted QAOA angles for layer `j = 1, ..., p` |
 
 A `reach` of `1.0` means that the predicted angles match the approximation ratio obtained from the reference optimized angles.
 
@@ -342,7 +362,7 @@ For example:
 ```python
 import pandas as pd
 
-df = pd.read_csv("runs/<run_name>/test_per_instance.csv")
+df = pd.read_csv("runs/<run_name>/testing/<YYYYMMDD_HHMMSS>/test_per_instance.csv")
 
 df.groupby("instance_set")["reach"].agg(["mean", "std", "min"])
 df.groupby("node_count")["reach"].mean()
@@ -362,6 +382,7 @@ Checkpoints are loaded with `strict=True`, so incompatible model architectures f
 | `ml_models/` | Model architectures and `MODEL_REGISTRY` |
 | `training/` | Training, testing and QAOA evaluation |
 | `configs/sample_configs/` | Annotated example configuration |
+| `configs/qaoa_methods/` | `qaoa_training_pipeline` config for generating labels |
 | `scripts_and_notebooks/` | Data preparation utilities and tutorial |
 | `tests/` | Model, configuration and repository tests |
 
@@ -379,9 +400,11 @@ The data preparation utilities are:
 | File | Purpose |
 |---|---|
 | `datamodule_tutorial.ipynb` | Walkthrough of the datamodule, normalization and splits |
-| `build_best_param.py` | Convert a `BestParameterManager` summary into `results_p<P>/best_param.json` |
+| `build_best_param.py` | Build `results_p<P>/best_param.json` from `qaoa_training_pipeline` results |
 | `testset_generation.py` | Generate the master train, validation and test split |
 | `build_per_p_split.py` | Filter a split to instances available at a given QAOA depth |
+| `compute_fixed_angle_cuts.py` | Compute the fixed-angle baseline |
+| `make_smoke_test_data.py` | Generate a tiny synthetic dataset for smoke tests |
 
 
 ## Acknowledgements
