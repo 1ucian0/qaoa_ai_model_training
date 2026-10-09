@@ -1,0 +1,47 @@
+{
+    "params_provider": {
+        "provider_name": "FromConfigParamsProvider",
+        "provider_init": {
+            "params0": [
+                0.3927,
+                0.6155
+            ],
+            "qaoa_angles_function": "IdentityFunction"
+        }
+    },
+    "pipeline_components": [
+        {
+            "component_name": "RecursionTrainer",
+            "component_init": {
+                "trainer": "ScipyTrainer",
+                "trainer_init": {
+                    "evaluator": "StatevectorEvaluator",
+                    "evaluator_init": {},
+                    "minimize_args": {
+                        "options": {
+                            "maxiter": 200,
+                            "rhobeg": 0.1
+                        }
+                    }
+                },
+                "parameter_extender": "interpolate",
+                "reps": 1
+            }
+        },
+        {
+            "component_name": "ScipyTrainer",
+            "component_init": {
+                "evaluator": "StatevectorEvaluator",
+                "evaluator_init": {},
+                "minimize_args": {
+                    "options": {
+                        "maxiter": 200,
+                        "rhobeg": 0.1
+                    }
+                }
+            }
+        }
+    ],
+    "save_file": "fixed_start_recursion_SV.json",
+    "description": "Statevector optimization from the 3-regular p=1 fixed angles, extended by recursion to depth p (set with --component_kwargs0 reps:<p>), then refined."
+}

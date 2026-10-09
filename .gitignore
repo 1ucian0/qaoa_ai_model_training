@@ -28,6 +28,7 @@ lightning_logs/
 # ── Generated configs ─────────────────────────────────────────────────────────
 configs/*
 !configs/sample_configs/
+!configs/qaoa_methods/
 
 # ── Jupyter ───────────────────────────────────────────────────────────────────
 .ipynb_checkpoints/
