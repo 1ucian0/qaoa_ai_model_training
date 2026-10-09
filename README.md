@@ -1,42 +1,85 @@
 # QAOA AI model training
 
 > [!NOTE]
-> This repository is associated to a [research publication](<link-to-publication>) and the code here is not actively maintained. This is not an officially supported IBM Quantum software.
+> This repository is associated with a [research publication](<link-to-publication>) and the code here is not actively maintained. It is not officially supported IBM Quantum software.
 
-This repository provides a training and evaluation pipeline for graph-based machine learning models that predict optimized QAOA parameters directly from a problem graph.
-
-The models take graph-level features and, depending on the architecture, graph topology, node features and edge weights. They predict the QAOA angle vector
+This repository contains the code to train and evaluate machine learning models that predict QAOA parameters for weighted MaxCut problems. Given a problem graph, a model outputs the angles
 
 ```text
 [beta_1, ..., beta_p, gamma_1, ..., gamma_p]
 ```
 
-of length `2p`.
+for QAOA depth `p`.
 
-Available model architectures are registered in `MODEL_REGISTRY` in [`ml_models/models.py`](ml_models/models.py). The corresponding model classes in `ml_models/` document which inputs they use.
+Depending on the architecture, a model uses graph-level features, the graph structure, node features and edge weights. All available models are listed in `MODEL_REGISTRY` in [`ml_models/models.py`](ml_models/models.py), and each model class documents which inputs it uses.
 
-All commands below are run from the repository root.
+## Installation
+
+Requires Python 3.11+. Clone the repository and install the package into a fresh `venv`:
+
+```bash
+git clone <repository-url>
+cd qaoa_ai_model_training
+pip install -e .
+```
+
+This covers the `mlp`, `edge_transformer`, `diffusion_transformer`, and `graph_neural_network` models.
+
+The `gcn`, `graph_isomorphism_network`, and `graph_transformer` models need `torch-geometric` as well. Install it after the base package when `torch` is already present:
+
+```bash
+pip install -e ".[graph]" --no-build-isolation
+```
+
+`--no-build-isolation` ensures `torch-scatter`, `torch-sparse` and `torch-cluster` are built against the environment you installed `torch` into.
+
+The tutorial notebook needs Jupyter, which is included in the `notebooks` extra:
+
+```bash
+pip install -e ".[notebooks]"
+```
+
+### Julia (for QAOA depth `p > 1`)
+
+Runs with `p = 1` do not need Julia. For `p > 1`, the pipeline uses `PPEvaluator` from [`qaoa_training_pipeline`](https://github.com/qiskit-community/qaoa_training_pipeline), which relies on [PauliPropagation.jl](https://github.com/MSRudolph/PauliPropagation.jl) through `juliacall`. Install the `julia` extra, then run the setup script:
+
+```bash
+pip install -e ".[julia]"
+python link-julia-python.py
+```
+
+If Julia is not installed, `juliacall` downloads a compatible version into the virtual environment on first use. An existing Julia installation, for example from [juliaup](https://github.com/JuliaLang/juliaup), is used otherwise. The setup script installs `PauliPropagation.jl` into the Julia environment and checks that the Python–Julia bridge works.
 
 ## Quickstart
 
-1. Install the package (see [Setup](#setup)).
-2. No graph data yet? Generate a tiny synthetic dataset to smoke-test the pipeline:
+To check that the installation works, you can run the full pipeline on a tiny synthetic dataset. The labels are random, non-optimized angles, so the resulting model is only useful as a smoke test. Each step is explained in more detail in [Data](#data), [Training](#training) and [Testing](#testing).
+
+1. Create the dataset. This writes 12 small random graphs, their max-cut values and made-up labels to `/tmp/qaoa_smoke_test`:
    ```bash
    python -m scripts_and_notebooks.make_smoke_test_data --out_dir /tmp/qaoa_smoke_test
+   ```
+2. Split the graphs into train, validation and test sets (see [Train, validation and test splits](#4-train-validation-and-test-splits)). The first command splits all graphs and computes normalization statistics. The second keeps only the graphs that have labels at depth `p = 1`:
+   ```bash
    python -m scripts_and_notebooks.testset_generation --graphs_repo /tmp/qaoa_smoke_test --instance_sets smoke_test
    python -m scripts_and_notebooks.build_per_p_split --graphs_repo /tmp/qaoa_smoke_test --target_p 1
+   ```
+3. Train a model with the settings in [`smoke_test_config.yaml`](configs/sample_configs/smoke_test_config.yaml):
+   ```bash
    python -m training.training_script --config configs/sample_configs/smoke_test_config.yaml
+   ```
+4. Test the trained checkpoint. The results are written to `runs/smoke_test/testing/<timestamp>/`:
+   ```bash
    python -m training.testing_script --config configs/sample_configs/smoke_test_config.yaml \
      --ckpt_path checkpoints/smoke_test/smoke_test/last.ckpt
    ```
-   This uses random, non-optimized angles purely to check that installation and the pipeline mechanics work end to end. Do not use the resulting checkpoint for anything else.
-3. With real data, follow [Data](#data) to lay out `graph_dir`, then [Configuration](#configuration), [Training](#training) and [Testing](#testing) in order.
+
+To work with your own data, follow [Data](#data), [Configuration](#configuration), [Training](#training) and [Testing](#testing) in order.
 
 ## Data
 
 **This repository contains code only.** The graph dataset used in the accompanying paper is not included. To train or evaluate a model, you need to provide your own graph data and QAOA optimization results.
 
-The pipeline expects the directory specified by `data.graph_dir` to follow this structure (alternatively, individual paths can also be overwritten manually):
+The pipeline expects the directory specified by `data.graph_dir` to follow this structure (individual paths can also be overridden in the configuration):
 
 ```text
 <graph_dir>/
@@ -202,9 +245,9 @@ splits/p_<P>/test_split.json
 
 Training and testing pick up these files and the normalization statistics stored in `train_val_split.json` automatically from `data.graph_dir` and `data.p`. To use split files from another location, set `data.split_file` and `data.test_file` in the configuration.
 
-### Fixed-angle baseline
+### 5. Fixed-angle baseline (optional)
 
-`fixed_angle_cuts/` is optional. If no fixed-angle result is available for an instance, training and testing still work and `fixed_angle_approx_ratio` is left empty.
+If no fixed-angle result is available for an instance, training and testing still work and `fixed_angle_approx_ratio` is left empty.
 
 To reproduce our fixed-angle baseline:
 
@@ -236,49 +279,9 @@ A fixed-angle result has the following format:
 
 `fixed_angle_cut` is the cut value at the given angles. `betas` and `gammas` must each have length `p`.
 
-## Setup
-
-Requires Python 3.11+. Clone the repository and install the package into a fresh virtual environment:
-
-```bash
-git clone <repository-url>
-cd qaoa_ai_model_training
-pip install -e .
-```
-
-This covers the `mlp`, `edge_transformer`, `diffusion_transformer`, and `graph_neural_network` models.
-
-The `gcn`, `graph_isomorphism_network`, and `graph_transformer` models need `torch-geometric` as well. Install it after the base package, once `torch` is already present:
-
-```bash
-python -m pip install -e ".[graph]" --no-build-isolation
-```
-
-`--no-build-isolation` stops `torch-scatter` from building against a fresh, torch-less environment instead of the one you just installed `torch` into.
-
-The tutorial notebook needs Jupyter, which is included in the `notebooks` extra:
-
-```bash
-pip install -e ".[notebooks]"
-```
-
-
-### Julia for QAOA depth greater than 1
-
-Runs with `p = 1` do not need Julia. For `p > 1`, the pipeline uses `PPEvaluator` from [`qaoa_training_pipeline`](https://github.com/qiskit-community/qaoa_training_pipeline), which relies on [PauliPropagation.jl](https://github.com/MSRudolph/PauliPropagation.jl) through `juliacall`. Install the `julia` extra, then run the setup script:
-
-```bash
-pip install -e ".[julia]"
-python link-julia-python.py
-```
-
-If Julia is not installed, `juliacall` downloads a compatible version into the virtual environment on first use. An existing Julia installation, for example from [juliaup](https://github.com/JuliaLang/juliaup), is used otherwise. The setup script installs `PauliPropagation.jl` into the Julia environment and checks that the Python–Julia bridge works.
-
-`juliacall` must be imported before `torch` to avoid a segfault. The package handles this import order internally. Dataloader workers use the spawn start method because `juliacall` is not fork-safe.
-
 ## Configuration
 
-[`configs/sample_configs/sample_config.yaml`](configs/sample_configs/sample_config.yaml) is the annotated reference configuration. Copy it and adapt it for your experiment.
+We provide a sample config, [`configs/sample_configs/sample_config.yaml`](configs/sample_configs/sample_config.yaml). You can use it to get started and build your own configs on top of it.
 
 The main settings to change are:
 
@@ -329,6 +332,8 @@ python -m training.testing_script \
 
 To evaluate several checkpoints, run `training.testing_script` once for each configuration and checkpoint pair.
 
+Checkpoints are loaded with `strict=True`, so incompatible model architectures fail during loading instead of silently loading a partially initialized model.
+
 Each run writes
 
 ```text
@@ -339,7 +344,7 @@ reach_distribution.png
 
 to a timestamped folder `<log_dir>/<run_name>/testing/<YYYYMMDD_HHMMSS>/`, so repeated runs do not overwrite each other.
 
-### Analysing results
+### Analyzing results
 
 `test_per_instance.csv` contains one row for each evaluated graph and is the recommended basis for further analysis.
 
@@ -372,8 +377,6 @@ df.nsmallest(10, "reach")
 
 The models do not receive `instance_set` or `graph_type` as input. These fields are only stored for analysis.
 
-Checkpoints are loaded with `strict=True`, so incompatible model architectures fail during loading instead of silently loading a partially initialized model.
-
 ## Repository layout
 
 | Path | Contents |
@@ -381,7 +384,7 @@ Checkpoints are loaded with `strict=True`, so incompatible model architectures f
 | `datamodule/` | Dataset loading, feature computation, normalization and splits |
 | `ml_models/` | Model architectures and `MODEL_REGISTRY` |
 | `training/` | Training, testing and QAOA evaluation |
-| `configs/sample_configs/` | Annotated example configuration |
+| `configs/sample_configs/` | Sample and smoke-test configurations |
 | `configs/qaoa_methods/` | `qaoa_training_pipeline` config for generating labels |
 | `scripts_and_notebooks/` | Data preparation utilities and tutorial |
 | `tests/` | Model, configuration and repository tests |
@@ -405,7 +408,6 @@ The data preparation utilities are:
 | `build_per_p_split.py` | Filter a split to instances available at a given QAOA depth |
 | `compute_fixed_angle_cuts.py` | Compute the fixed-angle baseline |
 | `make_smoke_test_data.py` | Generate a tiny synthetic dataset for smoke tests |
-
 
 ## Acknowledgements
 
