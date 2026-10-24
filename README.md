@@ -3,6 +3,7 @@
 > [!NOTE]
 > This repository is associated with a [research publication](https://arxiv.org/abs/2610.23296) and the code here is not actively maintained. It is not officially supported IBM Quantum software.
 
+
 This repository contains the code to train and evaluate machine learning models that predict QAOA parameters for weighted MaxCut problems. Given a problem graph, a model outputs the angles
 
 ```text
